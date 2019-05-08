@@ -1,0 +1,81 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 3000:3000    ### ローカルで使用するのでIPアドレスは削除 ###
+    links:
+      - mongo:mongo
+      - elasticsearch:elasticsearch
+    depends_on:
+      - mongo
+      - elasticsearch
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/growi
+      - ELASTICSEARCH_URI=http://elasticsearch:9200/growi
+      - PASSWORD_SEED=changeme   ### changemeをランダムな文字列(MAX64桁)に変更する ###
+      - FILE_UPLOAD=local        ### ローカルで使用するのでコメントを外す ###
+      # - MATHJAX=1
+      # - PLANTUML_URI=http://
+      # - HACKMD_URI=http://
+      # - HACKMD_URI_FOR_SERVER=http://hackmd:3000
+
+    command: "dockerize
+              -wait tcp://mongo:27017
+              -wait tcp://elasticsearch:9200
+              -timeout 60s
+              npm run server:prod"
+    volumes:
+      - growi_data:/data
+    restart: always      ### 自動起動の設定(追加) ###
+
+  mongo:
+    image: mongo:3.4
+    volumes:
+      - mongo_configdb:/data/configdb
+      - mongo_db:/data/db
+    restart: always      ### 自動起動の設定(追加) ###
+
+  elasticsearch:
+    image: elasticsearch:5.3-alpine
+    environment:
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"  # increase amount if you have enough memory
+    command:
+      - sh
+      - -c
+      - "./bin/elasticsearch-plugin list | grep -q analysis-kuromoji || ./bin/elasticsearch-plugin install analysis-kuromoji;
+        ./bin/elasticsearch-plugin list | grep -q analysis-icu || ./bin/elasticsearch-plugin install analysis-icu;
+        /docker-entrypoint.sh elasticsearch"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+      - es_plugins:/usr/share/elasticsearch/plugins
+      - ./esconfig:/usr/share/elasticsearch/config
+    restart: always      ### 自動起動の設定(追加) ###
+
+volumes:    ### 以下のようにホストのディレクトリを追記する ###
+   growi_data:
+      driver_opts:
+        type: none
+        device: /home/ubuntu/data/growi_data
+        o: bind
+   mongo_configdb:
+      driver_opts:
+        type: none
+device: /home/ubuntu/data/mongo_configdb
+        o: bind
+   mongo_db:
+      driver_opts:
+        type: none
+        device: /home/ubuntu/data/mongo_db
+        o: bind
+   es_data:
+      driver_opts:
+        type: none
+        device: /home/ubuntu/data/es_data
+        o: bind
+   es_plugins:
+      driver_opts:
+        type: none
+        device: /home/ubuntu/data/es_plugins
+        o: bind
